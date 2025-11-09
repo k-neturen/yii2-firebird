@@ -63,7 +63,7 @@ return [
     //....
     'components' => [
         'db' => [
-            'class' => 'k-neturen\db\firebird\Connection',
+            'class' => 'neturen\db\firebird\Connection',
             'dsn' => 'firebird:dbname=localhost:/tmp/TEST.FDB;charset=ISO8859_1',
             'username' => 'username',
             'password' => 'password',

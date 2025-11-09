@@ -27,7 +27,7 @@
     },
     "autoload": {
         "psr-4": {
-            "k-neturen\\db\\firebird\\": "src"
+            "neturen\\db\\firebird\\": "src"
         }
     },
     "config": {
