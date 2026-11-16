@@ -23,6 +23,15 @@ At least Firebird version 2.0 is required. However, in order to use all extensio
 
 Partial support with Firebird 3.0
 
+PHP 7.4 or later (tested up to PHP 8.5) and Yii 2.0.55 or later are required.
+
+Notes for PHP 8.4 and later:
+
+ * Transactions use the native pdo_firebird transaction API. pdo_firebird does not offer a `NO WAIT`
+   option, so lock conflicts wait instead of failing immediately.
+ * The isolation level must be passed to `beginTransaction()`; changing it on an active transaction
+   (`Transaction::setIsolationLevel()`) throws `NotSupportedException`.
+
 Unsupported
 ------------
 

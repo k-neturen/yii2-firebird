@@ -9,6 +9,8 @@
 namespace neturen\db\firebird;
 
 use PDO;
+use yii\base\NotSupportedException;
+use yii\db\Transaction;
 
 /**
  * Description of PdoAdapter
@@ -19,6 +21,11 @@ class PdoAdapter extends PDO
 {
 
     private $_inTransaction = false;
+
+    /**
+     * @var int|null isolation level used when a transaction is started without one (PHP >= 8.4 only)
+     */
+    private $_defaultIsolationLevel;
 
     /**
      * Do some basic setup for Firebird.
@@ -42,14 +49,42 @@ class PdoAdapter extends PDO
         // ensure we only receive fieldname not tablename.fieldname.
         $driver_options[PDO::ATTR_FETCH_TABLE_NAMES] = false;
         parent::__construct($dsn, $username, $password, $driver_options);
+
+        if (static::hasNativeTransactions()) {
+            $this->_defaultIsolationLevel = $this->getAttribute(\Pdo\Firebird::TRANSACTION_ISOLATION_LEVEL);
+        }
+    }
+
+    /**
+     * Since PHP 8.4 pdo_firebird always keeps its own transaction handle open, so transactions
+     * can no longer be controlled with `SET TRANSACTION`/`COMMIT`/`ROLLBACK` statements and
+     * the native PDO transaction API must be used instead.
+     * @return bool whether native PDO transactions (with isolation level support) are used.
+     */
+    public static function hasNativeTransactions()
+    {
+        return PHP_VERSION_ID >= 80400;
     }
 
     /**
      * Initiates a transaction
+     * @param string|false|null $isolationLevel the isolation level. On PHP < 8.4 this is a Firebird
+     * isolation level clause, `false` to let [[Schema::setTransactionIsolationLevel()]] start the transaction
+     * or `null` for the default. On PHP >= 8.4 this is one of the [[Transaction]] isolation level constants
+     * or the equivalent Firebird clause.
      * @return bool <b>TRUE</b> on success or <b>FALSE</b> on failure.
      */
     public function beginTransaction($isolationLevel = null) : bool
     {
+        if (static::hasNativeTransactions()) {
+            $level = $isolationLevel === null || $isolationLevel === false
+                ? $this->_defaultIsolationLevel
+                : $this->resolveNativeIsolationLevel($isolationLevel);
+            $this->setAttribute(\Pdo\Firebird::TRANSACTION_ISOLATION_LEVEL, $level);
+
+            return parent::beginTransaction();
+        }
+
         $this->setAttribute(PDO::ATTR_AUTOCOMMIT, false);
 
         if ($isolationLevel === false) {
@@ -80,6 +115,10 @@ class PdoAdapter extends PDO
      */
     public function commit(): bool
     {
+        if (static::hasNativeTransactions()) {
+            return parent::commit();
+        }
+
         $r = $this->exec('COMMIT');
         $this->setAttribute(PDO::ATTR_AUTOCOMMIT, true);
         $success = ($r !== false);
@@ -95,6 +134,10 @@ class PdoAdapter extends PDO
      */
     public function rollBack(): bool
     {
+        if (static::hasNativeTransactions()) {
+            return parent::rollBack();
+        }
+
         $r = $this->exec('ROLLBACK');
         $this->setAttribute(PDO::ATTR_AUTOCOMMIT, true);
         $success = ($r !== false);
@@ -110,6 +153,34 @@ class PdoAdapter extends PDO
      */
     public function inTransaction(): bool
     {
+        if (static::hasNativeTransactions()) {
+            return parent::inTransaction();
+        }
+
         return $this->_inTransaction;
+    }
+
+    /**
+     * Maps a Yii or Firebird isolation level to a `Pdo\Firebird` isolation level constant.
+     * @param string $isolationLevel
+     * @return int
+     * @throws NotSupportedException if the isolation level is not supported by pdo_firebird
+     */
+    protected function resolveNativeIsolationLevel($isolationLevel)
+    {
+        switch (strtoupper(trim($isolationLevel))) {
+            case Transaction::READ_UNCOMMITTED:
+            case Transaction::READ_COMMITTED:
+            case 'READ COMMITTED RECORD_VERSION':
+                return \Pdo\Firebird::READ_COMMITTED;
+            case Transaction::REPEATABLE_READ:
+            case 'SNAPSHOT':
+                return \Pdo\Firebird::REPEATABLE_READ;
+            case Transaction::SERIALIZABLE:
+            case 'SNAPSHOT TABLE STABILITY':
+                return \Pdo\Firebird::SERIALIZABLE;
+        }
+
+        throw new NotSupportedException("Transaction isolation level '$isolationLevel' is not supported by pdo_firebird.");
     }
 }

@@ -118,11 +118,13 @@ class Connection extends \yii\db\Connection
         } catch (\Exception $ex) {
         }
         
+        $firebirdVersion = (string) $this->firebird_version;
+        $pdoFirebirdVersion = (string) phpversion('pdo_firebird');
         $supports = [
-            'supportColumnIdentity' => version_compare($this->firebird_version, '3.0.0', '>='),
-            'supportStableCursor' => version_compare($this->firebird_version, '3.0.0', '>='),
-            'supportReturningInsert' => version_compare($this->firebird_version, '3.0.0', '<') || version_compare(phpversion('pdo_firebird'), '7.0.15', '>='),
-            'supportBlobDataType' => version_compare(phpversion('pdo_firebird'), '7.0.13', '>'),
+            'supportColumnIdentity' => version_compare($firebirdVersion, '3.0.0', '>='),
+            'supportStableCursor' => version_compare($firebirdVersion, '3.0.0', '>='),
+            'supportReturningInsert' => version_compare($firebirdVersion, '3.0.0', '<') || version_compare($pdoFirebirdVersion, '7.0.15', '>='),
+            'supportBlobDataType' => version_compare($pdoFirebirdVersion, '7.0.13', '>'),
         ];
         
         foreach ($supports as $key => $value) {

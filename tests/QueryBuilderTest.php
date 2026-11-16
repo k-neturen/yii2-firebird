@@ -21,7 +21,8 @@ class QueryBuilderTest extends \yiiunit\framework\db\QueryBuilderTest
     
     protected $likeEscapeCharSql = " ESCAPE '\\'";
 
-    public static function assertSame($expected, $actual, $message = '') {
+    public static function assertSame($expected, $actual, string $message = ''): void
+    {
         // Fix PDO VALUE Compare
         $filter = function ($obj) {
             return !($obj instanceof \yii\db\PdoValue);
@@ -33,7 +34,7 @@ class QueryBuilderTest extends \yiiunit\framework\db\QueryBuilderTest
            $actual = array_filter($actual, $filter);
         }
         
-        return parent::assertSame($expected, $actual, $message);
+        parent::assertSame($expected, $actual, $message);
     }
     
     /**
@@ -150,7 +151,7 @@ class QueryBuilderTest extends \yiiunit\framework\db\QueryBuilderTest
         return $columns;
     }
 
-    public function conditionProvider()
+    public static function conditionProvider(): array
     {
         $conditions = parent::conditionProvider();
 
@@ -169,29 +170,62 @@ class QueryBuilderTest extends \yiiunit\framework\db\QueryBuilderTest
                 [':qp0' => 1, ':qp1' => 'oy', ':qp2' => 2, ':qp3' => 'yo']
             ];
 
-        $conditions[44] = [ ['=', 'date', (new Query())->select('max(date)')->from('test')->where(['id' => 5])], '"date" = (SELECT max(date) AS max_date FROM test WHERE id=:qp0)', [':qp0' => 5] ];
-        $conditions[51] = [ ['in', ['id', 'name'], [['id' => 1, 'name' => 'foo'], ['id' => 2, 'name' => 'bar']]], '((id = :qp0 AND name = :qp1) OR (id = :qp2 AND name = :qp3))', [':qp0' => 1, ':qp1' => 'foo', ':qp2' => 2, ':qp3' => 'bar']];
-        $conditions[52] = [ ['not in', ['id', 'name'], [['id' => 1, 'name' => 'foo'], ['id' => 2, 'name' => 'bar']]], '((id != :qp0 OR name != :qp1) AND (id != :qp2 OR name != :qp3))', [':qp0' => 1, ':qp1' => 'foo', ':qp2' => 2, ':qp3' => 'bar']];
-        
+        $conditions['composite in with multiple rows'] = [
+            ['in', ['id', 'name'], [['id' => 1, 'name' => 'foo'], ['id' => 2, 'name' => 'bar']]],
+            '((id = :qp0 AND name = :qp1) OR (id = :qp2 AND name = :qp3))',
+            [':qp0' => 1, ':qp1' => 'foo', ':qp2' => 2, ':qp3' => 'bar'],
+        ];
+        $conditions['composite not in with multiple rows'] = [
+            ['not in', ['id', 'name'], [['id' => 1, 'name' => 'foo'], ['id' => 2, 'name' => 'bar']]],
+            '((id != :qp0 OR name != :qp1) AND (id != :qp2 OR name != :qp3))',
+            [':qp0' => 1, ':qp1' => 'foo', ':qp2' => 2, ':qp3' => 'bar'],
+        ];
+
+        // Firebird adds an alias to aggregate columns, see QueryBuilder::buildSelect()
+        foreach ($conditions as &$condition) {
+            $condition[1] = strtr($condition[1], [
+                'SELECT max(date) FROM' => 'SELECT max(date) AS max_date FROM',
+                'SELECT COUNT(*) FROM' => 'SELECT COUNT(*) AS COUNT_ALL FROM',
+            ]);
+        }
+        unset($condition);
+
         return $conditions;
     }
     
-    /**
-     * @dataProvider primaryKeysProvider
-     * @param string $sql
-     */
-    public function testAddDropPrimaryKey($sql, \Closure $builder)
+    public function testBuildWithQuery(): void
     {
-        $tableName = 'constraints';
+        // Firebird does not support parenthesized queries in UNION
+        $expectedQuerySql = $this->replaceQuotes(
+            'WITH a1 AS (SELECT [[id]] FROM [[t1]] WHERE expr = 1), a2 AS (SELECT [[id]] FROM [[t2]] INNER JOIN [[a1]] ON t2.id = a1.id WHERE expr = 2 UNION SELECT [[id]] FROM [[t3]] WHERE expr = 3) SELECT * FROM [[a2]]'
+        );
+        $with1Query = (new Query())
+            ->select('id')
+            ->from('t1')
+            ->where('expr = 1');
 
-        // Change field1 to not null
-        $qb = $this->getQueryBuilder();
-        $qb->db->createCommand()->alterColumn($tableName, 'field1', 'string(255) not null')->execute();
-        
-        parent::testAddDropPrimaryKey($sql, $builder);
+        $with2Query = (new Query())
+            ->select('id')
+            ->from('t2')
+            ->innerJoin('a1', 't2.id = a1.id')
+            ->where('expr = 2');
+
+        $with3Query = (new Query())
+            ->select('id')
+            ->from('t3')
+            ->where('expr = 3');
+
+        $query = (new Query())
+            ->withQuery($with1Query, 'a1')
+            ->withQuery($with2Query->union($with3Query), 'a2')
+            ->from('a2');
+
+        list($actualQuerySql, $queryParams) = $this->getQueryBuilder()->build($query);
+        $this->assertEquals($expectedQuerySql, $actualQuerySql);
+        $this->assertEquals([], $queryParams);
     }
 
-    public function defaultValuesProvider()
+    public static function defaultValuesProvider(): array
     {
         $tableName = 'T_constraints_1';
         $name = 'CN_default';
@@ -215,7 +249,7 @@ class QueryBuilderTest extends \yiiunit\framework\db\QueryBuilderTest
      * This test contains three select queries connected with UNION and UNION ALL constructions.
      * It could be useful to use "phpunit --group=db --filter testBuildUnion" command for run it.
      */
-    public function testBuildUnion()
+    public function testBuildUnion(): void
     {
         $expectedQuerySql = $this->replaceQuotes(
             'SELECT [[id]] FROM [[TotalExample]] [[t1]] WHERE (w > 0) AND (x < 2) UNION SELECT [[id]] FROM [[TotalTotalExample]] [[t2]] WHERE w > 5 UNION ALL SELECT [[id]] FROM [[TotalTotalExample]] [[t3]] WHERE w = 3'
@@ -239,7 +273,7 @@ class QueryBuilderTest extends \yiiunit\framework\db\QueryBuilderTest
         $this->assertEquals([], $queryParams);
     }
 
-    public function testSelectSubquery()
+    public function testSelectSubquery(): void
     {
         $subquery = (new Query())
             ->select('COUNT(*)')
@@ -257,7 +291,7 @@ class QueryBuilderTest extends \yiiunit\framework\db\QueryBuilderTest
         
     public function testRenameTable()
     {
-        $this->setExpectedException('\yii\base\NotSupportedException');
+        $this->expectException('\yii\base\NotSupportedException');
 
         $qb = $this->getQueryBuilder();
         $qb->renameTable('null_values', 'null_values2');
@@ -422,15 +456,17 @@ class QueryBuilderTest extends \yiiunit\framework\db\QueryBuilderTest
      * @param string $expectedSQL
      * @param array $expectedParams
      */
-    public function testInsert($table, $columns, $params, $expectedSQL, $expectedParams) {
+    public function testInsert($table, $columns, $params, $expectedSQL, $expectedParams, $replaceQuotes = true): void
+    {
         $db = $this->getConnection(false);
         if (is_object($columns) && $columns instanceof \yii\db\Query && !$db->supportStableCursor) {
-            $this->setExpectedException('\yii\base\NotSupportedException', 'Firebird < 3.0.0 has the "Unstable Cursor" problem');
+            $this->expectException('\yii\base\NotSupportedException');
+            $this->expectExceptionMessage('Firebird < 3.0.0 has the "Unstable Cursor" problem');
         }
-        parent::testInsert($table, $columns, $params, $expectedSQL, $expectedParams);
+        parent::testInsert($table, $columns, $params, $expectedSQL, $expectedParams, $replaceQuotes);
     }
 
-    public function upsertProvider()
+    public static function upsertProvider(): array
     {
         $concreteData = [
             'regular values' => [
@@ -492,6 +528,9 @@ class QueryBuilderTest extends \yiiunit\framework\db\QueryBuilderTest
             'query, values and expressions without update part' => [
                 3 => 'MERGE INTO {{%T_upsert}} USING (SELECT :phEmail AS email, now() AS [[time]]) "EXCLUDED" ON ({{%T_upsert}}.email="EXCLUDED".email) WHEN MATCHED THEN UPDATE SET ts=:qp1, [[orders]]=T_upsert.orders + 1 WHEN NOT MATCHED THEN INSERT (email, [[time]]) VALUES ("EXCLUDED".email, "EXCLUDED".[[time]])',
             ],
+            'no columns to update' => [
+                3 => 'MERGE INTO T_upsert_1 USING (SELECT CAST(:qp0 AS integer) AS a FROM RDB$DATABASE) "EXCLUDED" ON (T_upsert_1.a="EXCLUDED".a) WHEN NOT MATCHED THEN INSERT (a) VALUES ("EXCLUDED".a)',
+            ],
         ];
 
         $newData = parent::upsertProvider();
@@ -510,15 +549,17 @@ class QueryBuilderTest extends \yiiunit\framework\db\QueryBuilderTest
      * @param string|string[] $expectedSQL
      * @param array $expectedParams
      */
-    public function testUpsert($table, $insertColumns, $updateColumns, $expectedSQL, $expectedParams) {
+    public function testUpsert($table, $insertColumns, $updateColumns, $expectedSQL, $expectedParams): void
+    {
         $db = $this->getConnection(false);
-        if (is_object($insertColumns) && $insertColumns instanceof \yii\db\Query && !$db->firebird_version) {
-            $this->setExpectedException('\yii\base\NotSupportedException', 'Firebird < 3.0.0 has the "Unstable Cursor" problem');
+        if (is_object($insertColumns) && $insertColumns instanceof \yii\db\Query && !$db->supportStableCursor) {
+            $this->expectException('\yii\base\NotSupportedException');
+            $this->expectExceptionMessage('Firebird < 3.0.0 has the "Unstable Cursor" problem');
         }
         parent::testUpsert($table, $insertColumns, $updateColumns, $expectedSQL, $expectedParams);
     }
     
-    public function batchInsertProvider()
+    public static function batchInsertProvider(): array
     {
         $tests = parent::batchInsertProvider();
         
@@ -536,7 +577,7 @@ class QueryBuilderTest extends \yiiunit\framework\db\QueryBuilderTest
         return $tests;
     }
 
-    public function testCommentColumn()
+    public function testCommentColumn(): void
     {
         $qb = $this->getQueryBuilder();
 
@@ -553,7 +594,7 @@ class QueryBuilderTest extends \yiiunit\framework\db\QueryBuilderTest
         $this->assertEquals($expected, $sql);
     }
 
-    public function testCommentTable()
+    public function testCommentTable(): void
     {
         $qb = $this->getQueryBuilder();
 
@@ -583,7 +624,7 @@ class QueryBuilderTest extends \yiiunit\framework\db\QueryBuilderTest
         $this->assertEquals('"order"."time"', $this->replaceQuotes('[[order]].[[time]]'));
     }
 
-    public function indexesProvider()
+    public static function indexesProvider(): array
     {
         $tests = parent::indexesProvider();
         

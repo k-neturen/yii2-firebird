@@ -9,6 +9,7 @@
 namespace neturen\db\firebird;
 
 use yii\base\InvalidCallException;
+use yii\base\NotSupportedException;
 use yii\db\CheckConstraint;
 use yii\db\Constraint;
 use yii\db\ConstraintFinderInterface;
@@ -427,8 +428,7 @@ class Schema extends BaseSchema implements ConstraintFinderInterface
         $pkeys = array_map('rtrim', $pkeys);
         $pkeys = array_map('strtolower', $pkeys);
         foreach ($columns as $key => $column) {
-            $column = array_map('strtolower', $column);
-            $columns[$key]['fprimary'] = in_array(rtrim($column['fname']), $pkeys);
+            $columns[$key]['fprimary'] = in_array(strtolower(rtrim($column['fname'])), $pkeys);
         }
         foreach ($columns as $column) {
             $c = $this->loadColumnSchema($column);
@@ -437,9 +437,9 @@ class Schema extends BaseSchema implements ConstraintFinderInterface
 
                 if (isset($column['fgenerator_name']) && $column['fgenerator_name']) {
                     $table->sequenceName = $column['fgenerator_name'];
-                } elseif (preg_match("/NEW.{$c->name}\s*=\s*GEN_ID\((\w+)/i", $column['fautoinc'], $matches)) {
+                } elseif (preg_match("/NEW.{$c->name}\s*=\s*GEN_ID\((\w+)/i", (string) $column['fautoinc'], $matches)) {
                     $table->sequenceName = $matches[1];
-                } elseif (preg_match("/NEW.{$c->name}\s*=\s*NEXT\s+VALUE\s+FOR\s+(\w+)/i", $column['fautoinc'], $matches)) {
+                } elseif (preg_match("/NEW.{$c->name}\s*=\s*NEXT\s+VALUE\s+FOR\s+(\w+)/i", (string) $column['fautoinc'], $matches)) {
                     $table->sequenceName = $matches[1];
                 }
             }
@@ -472,7 +472,7 @@ class Schema extends BaseSchema implements ConstraintFinderInterface
         $c->name = strtolower(rtrim($column['fname']));
         $c->allowNull = (int) $column['fnull'] !== 1;
         $c->isPrimaryKey = $column['fprimary'];
-        $c->autoIncrement = (isset($column['fgenerator_name']) && $column['fgenerator_name']) || (boolean) $column['fautoinc'];
+        $c->autoIncrement = (isset($column['fgenerator_name']) && $column['fgenerator_name']) || (bool) $column['fautoinc'];
         $c->comment = $column['fcomment'] === null ? '' : $column['fcomment'];
 
         $c->type = self::TYPE_STRING;
@@ -698,6 +698,10 @@ ORDER BY id.RDB$RELATION_NAME, id.RDB$INDEX_NAME, ids.RDB$FIELD_POSITION';
      */
     public function setTransactionIsolationLevel($level)
     {
+        if (PdoAdapter::hasNativeTransactions()) {
+            throw new NotSupportedException('Firebird can not change the isolation level of an active transaction, pass it to beginTransaction() instead.');
+        }
+
         if ($level == Transaction::READ_UNCOMMITTED) {
             parent::setTransactionIsolationLevel('READ COMMITTED RECORD_VERSION');
         } elseif ($level == Transaction::REPEATABLE_READ) {
@@ -718,6 +722,10 @@ ORDER BY id.RDB$RELATION_NAME, id.RDB$INDEX_NAME, ids.RDB$FIELD_POSITION';
         $params = [];
         $sql = "";
         $returnColumns = $this->getTableSchema($table)->primaryKey;
+        if (empty($returnColumns)) {
+            // nothing to return, a plain INSERT is enough
+            return parent::insert($table, $columns);
+        }
         if (!empty($returnColumns)) {
             if (!$this->db->supportReturningInsert) {
                 $returs = [];
@@ -985,8 +993,8 @@ SQL;
                 'columnNames' => $columnNames,
                 'foreignTableName' => strtolower(trim($constraint[0]['foreign_table_name'])),
                 'foreignColumnNames' => $foreignColumnNames,
-                'onDelete' => trim($constraint[0]['on_delete']),
-                'onUpdate' => trim($constraint[0]['on_update']),
+                'onDelete' => trim((string) $constraint[0]['on_delete']),
+                'onUpdate' => trim((string) $constraint[0]['on_update']),
             ]);
         }
 

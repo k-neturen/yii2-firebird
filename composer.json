@@ -18,31 +18,31 @@
         }
     ],
     "require": {
-        "yiisoft/yii2": "^2.0.15.0"
+        "php": ">=7.4",
+        "ext-pdo": "*",
+        "yiisoft/yii2": "~2.0.55"
     },
     "require-dev": {
-        "yiisoft/yii2-dev": "~2.0.15.0",
-        "yiisoft/yii2-coding-standards": "^2.0.2",
-        "phpunit/phpunit": "4.8.34"
+        "yiisoft/yii2-dev": "~2.0.55",
+        "yiisoft/yii2-coding-standards": "^3.0",
+        "phpunit/phpunit": "^9.6",
+        "dms/phpunit-arraysubset-asserts": "^0.5"
     },
     "autoload": {
         "psr-4": {
             "neturen\\db\\firebird\\": "src"
         }
     },
+    "repositories": [
+        {
+            "type": "composer",
+            "url": "https://asset-packagist.org"
+        }
+    ],
     "config": {
-        "platform": {
-            "php": "5.4"
-        },
-        "fxp-asset": {
-            "installer-paths": {
-                "npm-asset-library": "vendor/npm",
-                "bower-asset-library": "vendor/bower"
-            },
-            "vcs-driver-options": {
-                "github-no-api": true
-            },
-            "pattern-skip-version": "(-build|-patch)"
+        "allow-plugins": {
+            "yiisoft/yii2-composer": true,
+            "dealerdirect/phpcodesniffer-composer-installer": true
         }
     }
 }

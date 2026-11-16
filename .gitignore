@@ -31,3 +31,6 @@ phpunit.phar
 
 # runtime cache
 /tests/runtime
+
+# phpunit result cache
+/.phpunit.result.cache

@@ -8,9 +8,10 @@
 
 namespace neturen\db\firebird;
 
-use yii\base\InvalidParamException;
+use yii\base\InvalidArgumentException;
 use yii\base\NotSupportedException;
 use yii\db\Expression;
+use yii\db\ExpressionInterface;
 use yii\db\Query;
 
 /**
@@ -116,6 +117,10 @@ class QueryBuilder extends \yii\db\QueryBuilder
             $sql = "$sql{$this->separator}$union";
         }
 
+        if (!empty($query->withQueries)) {
+            $sql = $this->buildWithQueries($query->withQueries, $params) . $this->separator . $sql;
+        }
+
         return [$sql, $params];
     }
 
@@ -126,7 +131,8 @@ class QueryBuilder extends \yii\db\QueryBuilder
     {
         if (is_array($columns)) {
             foreach ($columns as $i => $column) {
-                if (!is_string($column)) {
+                // skip non string columns and columns which already have an alias
+                if (!is_string($column) || is_string($i)) {
                     continue;
                 }
                 $matches = [];
@@ -345,6 +351,10 @@ class QueryBuilder extends \yii\db\QueryBuilder
             $values[] = $this->rawInsert($table, $columns, $row, $params) . ';';
         }
 
+        if (empty($values)) {
+            return '';
+        }
+
         return 'EXECUTE block AS BEGIN ' . implode(' ', $values) . ' END;';
     }
     
@@ -417,6 +427,9 @@ class QueryBuilder extends \yii\db\QueryBuilder
                 $updateColumns[$name] = new Expression($quotedName);
             }
         }
+        if (empty($updateColumns)) {
+            return "$mergeSql WHEN NOT MATCHED THEN $insertSql";
+        }
         list($updates, $params) = $this->prepareUpdateSets($table, $updateColumns, $params);
         $updateSql = 'UPDATE SET ' . implode(', ', $updates);
         return "$mergeSql WHEN MATCHED THEN $updateSql WHEN NOT MATCHED THEN $insertSql";
@@ -485,7 +498,7 @@ class QueryBuilder extends \yii\db\QueryBuilder
         . ' ALTER ' . $this->db->quoteColumnName($column)
         . (($hasType) ? ' TYPE ' : ' ') .  $this->getColumnType($type);
         
-        if (version_compare($this->db->firebird_version, '3.0.0', '>=')) {
+        if (version_compare((string) $this->db->firebird_version, '3.0.0', '>=')) {
             $nullSql = false;
             
             if ($columnSchema->allowNull != $allowNullNewType) {
@@ -570,10 +583,10 @@ class QueryBuilder extends \yii\db\QueryBuilder
     {
         $tableSchema = $this->db->getTableSchema($table);
         if ($tableSchema === null) {
-            throw new InvalidParamException("Table not found: $table");
+            throw new InvalidArgumentException("Table not found: $table");
         }
         if ($tableSchema->sequenceName === null) {
-            throw new InvalidParamException("There is not sequence associated with table '$table'.");
+            throw new InvalidArgumentException("There is not sequence associated with table '$table'.");
         }
 
         if ($value !== null) {

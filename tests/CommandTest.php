@@ -15,7 +15,7 @@ class CommandTest extends \yiiunit\framework\db\CommandTest
 
     public $driverName = 'firebird';
     
-    public function testAutoQuoting()
+    public function testAutoQuoting(): void
     {
         $db = $this->getConnection(false);
 
@@ -24,7 +24,7 @@ class CommandTest extends \yiiunit\framework\db\CommandTest
         $this->assertEquals('SELECT id, t.name FROM customer t', $command->sql);
     }
 
-    public function testColumnCase()
+    public function testColumnCase(): void
     {
         $this->markTestSkipped('Test for travis with exit code 139');
         return;
@@ -53,7 +53,7 @@ class CommandTest extends \yiiunit\framework\db\CommandTest
         $this->assertTrue(isset($rows[0]['TOTAL']));
     }
     
-    public function testBindParamValue()
+    public function testBindParamValue(): void
     {
         if (!$this->getConnection(false)->supportBlobDataType) {
             $this->markTestSkipped('BLOB bug for PHP <= 7.0.13, see https://bugs.php.net/bug.php?id=61183');
@@ -125,12 +125,12 @@ SQL;
      * Test whether param binding works in other places than WHERE
      * @dataProvider paramsNonWhereProvider
      */
-    public function testBindParamsNonWhere($sql)
+    public function testBindParamsNonWhere($sql): void
     {
         $this->markTestSkipped('firebird does not support parameter in function');
     }
 
-    public function testBatchInsert()
+    public function testBatchInsert(): void
     {
         $command = $this->getConnection()->createCommand();
         $command->batchInsert(
@@ -153,7 +153,7 @@ SQL;
         $this->assertEquals(0, $command->execute());
     }
 
-    public function testInsertExpression()
+    public function testInsertExpression(): void
     {
         $db = $this->getConnection();
         $db->createCommand('DELETE FROM {{order_with_null_fk}}')->execute();
@@ -175,7 +175,7 @@ SQL;
         ], $record);
     }
 
-    public function testCreateTable()
+    public function testCreateTable(): void
     {
         $db = $this->getConnection();
 
@@ -198,7 +198,7 @@ SQL;
         ], $records);
     }
 
-    public function testAlterTable()
+    public function testAlterTable(): void
     {
         $db = $this->getConnection();
 
@@ -229,13 +229,13 @@ SQL;
         ], $records);
     }
 
-    public function testRenameTable()
+    public function testRenameTable(): void
     {
-        $this->setExpectedException('\yii\base\NotSupportedException');
+        $this->expectException('\yii\base\NotSupportedException');
         parent::testRenameTable();
     }
 
-    public function testLastInsertId()
+    public function testLastInsertId(): void
     {
         $db = $this->getConnection();
 
@@ -245,7 +245,7 @@ SQL;
         $this->assertEquals(3, $db->getSchema()->getLastInsertID('gen_profile_id'));
     }
     
-    public function testInsertSelect()
+    public function testInsertSelect(): void
     {
         $db = $this->getConnection(false);
         
@@ -253,12 +253,13 @@ SQL;
          * @see https://firebirdsql.org/file/documentation/reference_manuals/fblangref25-en/html/fblangref25-dml-insert.html#fblangref25-dml-insert-select-unstable
          */
         if (!$db->supportStableCursor) {
-            $this->setExpectedException('\yii\base\NotSupportedException', 'Firebird < 3.0.0 has the "Unstable Cursor" problem');
+            $this->expectException('\yii\base\NotSupportedException');
+            $this->expectExceptionMessage('Firebird < 3.0.0 has the "Unstable Cursor" problem');
         }
         parent::testInsertSelect();
     }
     
-    public function testInsertSelectAlias()
+    public function testInsertSelectAlias(): void
     {
         $db = $this->getConnection(false);
         
@@ -266,7 +267,8 @@ SQL;
          * @see https://firebirdsql.org/file/documentation/reference_manuals/fblangref25-en/html/fblangref25-dml-insert.html#fblangref25-dml-insert-select-unstable
          */
         if (!$db->supportStableCursor) {
-            $this->setExpectedException('\yii\base\NotSupportedException', 'Firebird < 3.0.0 has the "Unstable Cursor" problem');
+            $this->expectException('\yii\base\NotSupportedException');
+            $this->expectExceptionMessage('Firebird < 3.0.0 has the "Unstable Cursor" problem');
         }
         parent::testInsertSelectAlias();
     }
@@ -275,10 +277,8 @@ SQL;
      * Test INSERT INTO ... SELECT SQL statement with wrong query object
      *
      * @dataProvider invalidSelectColumns
-     * @expectedException \yii\base\InvalidParamException
-     * @expectedExceptionMessage Expected select query object with enumerated (named) parameters
      */
-    public function testInsertSelectFailed($invalidSelectColumns)
+    public function testInsertSelectFailed($invalidSelectColumns): void
     {
         $db = $this->getConnection(false);
         
@@ -286,12 +286,125 @@ SQL;
          * @see https://firebirdsql.org/file/documentation/reference_manuals/fblangref25-en/html/fblangref25-dml-insert.html#fblangref25-dml-insert-select-unstable
          */
         if (!$db->supportStableCursor) {
-            $this->setExpectedException('\yii\base\NotSupportedException', 'Firebird < 3.0.0 has the "Unstable Cursor" problem');
+            $this->expectException('\yii\base\NotSupportedException');
+            $this->expectExceptionMessage('Firebird < 3.0.0 has the "Unstable Cursor" problem');
+
+            $query = (new \yii\db\Query())->select($invalidSelectColumns)->from('{{customer}}');
+            $db->createCommand()->insert('{{customer}}', $query)->execute();
+            return;
         }
         parent::testInsertSelectFailed($invalidSelectColumns);
     }
+
+    public function testNoTablenameReplacement(): void
+    {
+        $db = $this->getConnection();
+
+        $db->createCommand()->insert(
+            '{{customer}}',
+            [
+                'name' => 'Some {{weird}} name',
+                'email' => 'test@example.com',
+                'address' => 'Some {{%weird}} address',
+            ]
+        )->execute();
+        // Firebird requires the sequence name to get the last insert ID after Command::insert()
+        $customerId = $db->getLastInsertID('gen_customer_id');
+        $customer = $db->createCommand('SELECT * FROM {{customer}} WHERE id=' . $customerId)->queryOne();
+        $this->assertEquals('Some {{weird}} name', $customer['name']);
+        $this->assertEquals('Some {{%weird}} address', $customer['address']);
+
+        $db->createCommand()->update(
+            '{{customer}}',
+            [
+                'name' => 'Some {{updated}} name',
+                'address' => 'Some {{%updated}} address',
+            ],
+            ['id' => $customerId]
+        )->execute();
+        $customer = $db->createCommand('SELECT * FROM {{customer}} WHERE id=' . $customerId)->queryOne();
+        $this->assertEquals('Some {{updated}} name', $customer['name']);
+        $this->assertEquals('Some {{%updated}} address', $customer['address']);
+    }
+
+    public function testsInsertQueryAsColumnValue(): void
+    {
+        $time = time();
+
+        $db = $this->getConnection();
+        $db->createCommand('DELETE FROM {{order_with_null_fk}}')->execute();
+
+        $command = $db->createCommand();
+        $command->insert('{{order}}', [
+            'customer_id' => 1,
+            'created_at' => $time,
+            'total' => 42,
+        ])->execute();
+        // Firebird requires the sequence name to get the last insert ID after Command::insert()
+        $orderId = $db->getLastInsertID('gen_order_id');
+
+        $columnValueQuery = new \yii\db\Query();
+        $columnValueQuery->select('created_at')->from('{{order}}')->where(['id' => $orderId]);
+
+        $command = $db->createCommand();
+        $command->insert(
+            '{{order_with_null_fk}}',
+            [
+                'customer_id' => $orderId,
+                'created_at' => $columnValueQuery,
+                'total' => 42,
+            ]
+        )->execute();
+
+        $this->assertEquals($time, $db->createCommand('SELECT [[created_at]] FROM {{order_with_null_fk}} WHERE [[customer_id]] = ' . $orderId)->queryScalar());
+
+        $db->createCommand('DELETE FROM {{order_with_null_fk}}')->execute();
+        $db->createCommand('DELETE FROM {{order}} WHERE [[id]] = ' . $orderId)->execute();
+    }
+
+    public function testBatchInsertDataTypesLocale(): void
+    {
+        $locale = setlocale(LC_NUMERIC, 0);
+        if (false === $locale) {
+            $this->markTestSkipped('Your platform does not support locales.');
+        }
+        $db = $this->getConnection();
+
+        try {
+            // This one sets decimal mark to comma sign
+            setlocale(LC_NUMERIC, 'ru_RU.utf8');
+
+            $cols = ['int_col', 'char_col', 'float_col', 'bool_col'];
+            $data = [
+                [1, 'A', 9.735, true],
+                [2, 'B', -2.123, false],
+                [3, 'C', 2.123, false],
+            ];
+
+            $db->createCommand()->delete('type')->execute();
+            $db->createCommand()->batchInsert('type', $cols, $data)->execute();
+
+            $data = $db->createCommand('SELECT int_col, char_col, float_col, bool_col FROM {{type}} WHERE [[int_col]] IN (1,2,3) ORDER BY [[int_col]];')->queryAll();
+            $this->assertEquals(3, \count($data));
+            $this->assertEquals(1, $data[0]['int_col']);
+            $this->assertEquals(2, $data[1]['int_col']);
+            $this->assertEquals(3, $data[2]['int_col']);
+            $this->assertEquals('A', rtrim($data[0]['char_col']));
+            $this->assertEquals('B', rtrim($data[1]['char_col']));
+            $this->assertEquals('C', rtrim($data[2]['char_col']));
+            // pdo_firebird returns DOUBLE PRECISION as a string with 16 significant digits (e.g. "9.734999999999999")
+            $this->assertEqualsWithDelta(9.735, (float) $data[0]['float_col'], 1e-12);
+            $this->assertEqualsWithDelta(-2.123, (float) $data[1]['float_col'], 1e-12);
+            $this->assertEqualsWithDelta(2.123, (float) $data[2]['float_col'], 1e-12);
+            $this->assertEquals('1', $data[0]['bool_col']);
+            $this->assertIsOneOf($data[1]['bool_col'], ['0', false]);
+            $this->assertIsOneOf($data[2]['bool_col'], ['0', false]);
+        } finally {
+            setlocale(LC_NUMERIC, $locale);
+        }
+    }
     
-    public function testAutoRefreshTableSchema()
+    public function testAutoRefreshTableSchema(): void
     {
         $db = $this->getConnection(false);
 
@@ -302,7 +415,8 @@ SQL;
         parent::testAutoRefreshTableSchema();
     }
     
-    public function batchInsertSqlProvider() {
+    public static function batchInsertSqlProvider(): array
+    {
         $data = parent::batchInsertSqlProvider();
         
         $data['issue11242']['expected'] = "EXECUTE block AS BEGIN INSERT INTO type (int_col, float_col, char_col) VALUES (NULL, NULL, 'Kyiv {{city}}, Ukraine'); END;";
@@ -314,7 +428,8 @@ SQL;
         return $data;
     }
 
-    public function testCreateView() {
+    public function testCreateView(): void
+    {
         $db = $this->getConnection(false);
         if ($db->getSchema()->getTableSchema('testCreateView') !== null) {
             $db->createCommand()->dropView('testCreateView')->execute();
@@ -327,11 +442,12 @@ SQL;
      * @param array $firstData
      * @param array $secondData
      */
-    public function testUpsert(array $firstData, array $secondData)
+    public function testUpsert(array $firstData, array $secondData): void
     {
         $db = $this->getConnection();
         if ($firstData['params'][1] instanceof \yii\db\Query && !$db->supportStableCursor) {
-            $this->setExpectedException('\yii\base\NotSupportedException', 'Firebird < 3.0.0 has the "Unstable Cursor" problem');
+            $this->expectException('\yii\base\NotSupportedException');
+            $this->expectExceptionMessage('Firebird < 3.0.0 has the "Unstable Cursor" problem');
         }
         
         if (!$this->getConnection(false)->supportBlobDataType) {

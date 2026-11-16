@@ -27,7 +27,7 @@ class ColumnSchemaBuilderTest extends \yiiunit\framework\db\ColumnSchemaBuilderT
     /**
      * @return array
      */
-    public function typesProvider()
+    public static function typesProvider(): array
     {
         $parent = parent::typesProvider();
         

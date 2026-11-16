@@ -12,7 +12,7 @@ class ConnectionTest extends \yiiunit\framework\db\ConnectionTest
 
     public $driverName = 'firebird';
 
-    public function testSerialize()
+    public function testSerialize(): void
     {
         $connection = $this->getConnection(false, false);
         $connection->open();
@@ -23,7 +23,7 @@ class ConnectionTest extends \yiiunit\framework\db\ConnectionTest
         $this->assertEquals(123, $unserialized->createCommand('SELECT 123 from RDB$DATABASE')->queryScalar());
     }
 
-    public function testQuoteValue()
+    public function testQuoteValue(): void
     {
         $connection = $this->getConnection(false);
         $this->assertEquals(123, $connection->quoteValue(123));
@@ -31,7 +31,7 @@ class ConnectionTest extends \yiiunit\framework\db\ConnectionTest
         $this->assertEquals("'It''s interesting'", $connection->quoteValue("It's interesting"));
     }
 
-    public function testQuoteTableName()
+    public function testQuoteTableName(): void
     {
         $connection = $this->getConnection(false);
         $this->assertEquals('"table"', $connection->quoteTableName('table'));
@@ -51,7 +51,7 @@ class ConnectionTest extends \yiiunit\framework\db\ConnectionTest
         $this->assertEquals('(order)', $connection->quoteTableName('(order)'));
     }
 
-    public function testQuoteColumnName()
+    public function testQuoteColumnName(): void
     {
         $connection = $this->getConnection(false);
         $this->assertEquals('"column"', $connection->quoteColumnName('column'));
@@ -67,7 +67,7 @@ class ConnectionTest extends \yiiunit\framework\db\ConnectionTest
         $this->assertEquals('(time)', $connection->quoteColumnName('(time)'));
     }
 
-    public function testQuoteFullColumnName()
+    public function testQuoteFullColumnName(): void
     {
         $connection = $this->getConnection(false, false);
         $this->assertEquals('"table"."column"', $connection->quoteColumnName('table.column'));
@@ -107,7 +107,7 @@ class ConnectionTest extends \yiiunit\framework\db\ConnectionTest
         $this->assertEquals('"order"."time"', $connection->quoteSql('{{%order}}."time"'));
     }
 
-    public function testExceptionContainsRawQuery()
+    public function testExceptionContainsRawQuery(): void
     {
         $this->markTestSkipped('This test does not work on firebird because preparing the failing query fails');
     }

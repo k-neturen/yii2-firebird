@@ -81,6 +81,12 @@ END;
 -- SQL
 EXECUTE block AS
 BEGIN
+    IF (EXISTS(SELECT 1 FROM rdb$relations WHERE LOWER(rdb$relation_name) = 'animal_view')) THEN 
+        EXECUTE STATEMENT 'DROP VIEW animal_view;';
+END;
+-- SQL
+EXECUTE block AS
+BEGIN
     IF (EXISTS(SELECT 1 FROM rdb$relations WHERE LOWER(rdb$relation_name) = 'animal')) THEN 
         EXECUTE STATEMENT 'DROP TABLE animal;';
 END;
@@ -123,12 +129,6 @@ END;
 -- SQL
 EXECUTE block AS
 BEGIN
-    IF (EXISTS(SELECT 1 FROM rdb$relations WHERE LOWER(rdb$relation_name) = 'animal_view')) THEN 
-        EXECUTE STATEMENT 'DROP VIEW animal_view;';
-END;
--- SQL
-EXECUTE block AS
-BEGIN
     IF (EXISTS(SELECT 1 FROM rdb$relations WHERE LOWER(rdb$relation_name) = 't_constraints_4')) THEN 
         EXECUTE STATEMENT 'DROP TABLE t_constraints_4;';
 END;
@@ -155,6 +155,12 @@ EXECUTE block AS
 BEGIN
     IF (EXISTS(SELECT 1 FROM rdb$relations WHERE LOWER(rdb$relation_name) = 't_upsert')) THEN 
         EXECUTE STATEMENT 'DROP TABLE t_upsert;';
+END;
+-- SQL
+EXECUTE block AS
+BEGIN
+    IF (EXISTS(SELECT 1 FROM rdb$relations WHERE LOWER(rdb$relation_name) = 't_upsert_1')) THEN 
+        EXECUTE STATEMENT 'DROP TABLE t_upsert_1;';
 END;
 -- SQL
 EXECUTE block AS
@@ -566,7 +572,7 @@ BEGIN
     INSERT INTO order_item_with_null_fk (order_id, item_id, quantity, subtotal) VALUES (1, 2, 2, 40.0);
     INSERT INTO order_item_with_null_fk (order_id, item_id, quantity, subtotal) VALUES (2, 4, 1, 10.0);
     INSERT INTO order_item_with_null_fk (order_id, item_id, quantity, subtotal) VALUES (2, 5, 1, 15.0);
-    INSERT INTO order_item_with_null_fk (order_id, item_id, quantity, subtotal) VALUES (2, 3, 1, 8.0);
+    INSERT INTO order_item_with_null_fk (order_id, item_id, quantity, subtotal) VALUES (2, 5, 1, 8.0);
     INSERT INTO order_item_with_null_fk (order_id, item_id, quantity, subtotal) VALUES (3, 2, 1, 40.0);
 END;
 -- SQL
@@ -700,6 +706,11 @@ CREATE TABLE t_upsert
     orders INT DEFAULT 0 NOT NULL,
     profile_id INT,
     UNIQUE (email, recovery_email)
+);
+-- SQL
+CREATE TABLE t_upsert_1
+(
+    a INTEGER NOT NULL PRIMARY KEY
 );
 -- SQL
 CREATE GENERATOR gen_t_upsert_id;

@@ -204,7 +204,7 @@ trait FirebirdTestTrait
 
     private $_traitDbs = [];
 
-    public function setUp()
+    protected function setUp(): void
     {
         if (static::$params === null) {
             static::$params = require(__DIR__ . '/data/config.php');
@@ -212,7 +212,7 @@ trait FirebirdTestTrait
         parent::setUp();
     }
     
-    public function tearDown()
+    protected function tearDown(): void
     {
         //close all DBs connections
         foreach ($this->_traitDbs as $db) {

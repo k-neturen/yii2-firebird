@@ -14,11 +14,24 @@ class SchemaTest extends \yiiunit\framework\db\SchemaTest
 
     public $driverName = 'firebird';
     
-    public function testGetSchemaNames()
+    public function testGetSchemaNames(): void
     {
         $this->markTestSkipped('Schemas are not supported in FirebirdSQL.');
     }
-    
+
+    public function testSchemaCache(): void
+    {
+        // Firebird does not support rename table, which is used by the parent test
+        /* @var $schema Schema */
+        $schema = $this->getConnection()->schema;
+
+        $schema->db->enableSchemaCache = true;
+        $schema->db->schemaCache = new \yii\caching\FileCache();
+        $noCacheTable = $schema->getTableSchema('type', true);
+        $cachedTable = $schema->getTableSchema('type', false);
+        $this->assertEquals($noCacheTable, $cachedTable);
+    }
+
     public function testView()
     {
         /* @var $schema Schema */
@@ -92,7 +105,7 @@ class SchemaTest extends \yiiunit\framework\db\SchemaTest
         return $columns;
     }
     
-    public function testCompositeFk()
+    public function testCompositeFk(): void
     {
         /* @var $schema Schema */
         $schema = $this->getConnection()->schema;
@@ -106,7 +119,7 @@ class SchemaTest extends \yiiunit\framework\db\SchemaTest
         $this->assertEquals('item_id', $table->foreignKeys['fk_composite_fk_order_item']['item_id']);
     }
 
-    public function testGetPDOType()
+    public function testGetPDOType(): void
     {
         $values = [
             [null, \PDO::PARAM_NULL],
@@ -138,7 +151,7 @@ class SchemaTest extends \yiiunit\framework\db\SchemaTest
         $this->assertEquals(2, $schema->getLastInsertID($schema->getTableSchema('profile')->sequenceName));
     }
 
-    public function testFindUniqueIndexes()
+    public function testFindUniqueIndexes(): void
     {
         /* @var $schema Schema */
         $schema = $this->getConnection()->schema;
@@ -168,7 +181,7 @@ class SchemaTest extends \yiiunit\framework\db\SchemaTest
         $this->assertEquals(['a', 'b', 'c'], $uniqueIndexes['uniqueabc']);
     }
 
-    public function constraintsProvider()
+    public static function constraintsProvider(): array
     {
         $providers = parent::constraintsProvider();
 
